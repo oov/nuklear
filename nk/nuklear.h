@@ -14669,7 +14669,7 @@ nk_slider_behavior(nk_flags *state, struct nk_rect *logical_cursor,
 
     /* slider widget state */
     if (nk_input_is_mouse_hovering_rect(in, bounds))
-        *state = NK_WIDGET_STATE_HOVERED;
+        *state |= NK_WIDGET_STATE_HOVERED;
     if (*state & NK_WIDGET_STATE_HOVER &&
         !nk_input_is_mouse_prev_hovering_rect(in, bounds))
         *state |= NK_WIDGET_STATE_ENTERED;
@@ -21006,7 +21006,7 @@ nk_slider_float(struct nk_context *ctx, float min_value, float *value, float max
 
     state = nk_widget(&bounds, ctx);
     if (!state) return ret;
-    in = (state == NK_WIDGET_ROM || layout->flags & NK_WINDOW_ROM) ? 0 : &ctx->input;
+    in = &ctx->input;
 
     old_value = *value;
     *value = nk_do_slider(&ctx->last_widget_state, &win->buffer, bounds, min_value,
