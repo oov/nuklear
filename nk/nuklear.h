@@ -11021,8 +11021,8 @@ nk_tt_PackFontRangesGatherRects(struct nk_tt_pack_context *spc,
             int glyph = nk_tt_FindGlyphIndex(info, codepoint);
             nk_tt_GetGlyphBitmapBoxSubpixel(info,glyph, scale * (float)spc->h_oversample,
                 scale * (float)spc->v_oversample, 0,0, &x0,&y0,&x1,&y1);
-            rects[k].w = (nk_rp_coord) (x1-x0 + spc->padding + (int)spc->h_oversample-1);
-            rects[k].h = (nk_rp_coord) (y1-y0 + spc->padding + (int)spc->v_oversample-1);
+            rects[k].w = (nk_rp_coord) (x1-x0 + spc->padding + (int)spc->h_oversample);
+            rects[k].h = (nk_rp_coord) (y1-y0 + spc->padding + (int)spc->v_oversample);
             ++k;
         }
     }
