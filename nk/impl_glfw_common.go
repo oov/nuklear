@@ -107,7 +107,9 @@ func NkPlatformNewFrame() {
 	NkInputKey(ctx, KeyScrollUp, keyPressed(win, glfw.KeyPageUp))
 	NkInputKey(ctx, KeyScrollDown, keyPressed(win, glfw.KeyPageDown))
 	NkInputKey(ctx, KeyShift, keysPressed(win, glfw.KeyLeftShift, glfw.KeyRightShift))
-	if keysPressed(win, glfw.KeyLeftControl, glfw.KeyRightControl) > 0 {
+	ctrl := keysPressed(win, glfw.KeyLeftControl, glfw.KeyRightControl)
+	NkInputKey(ctx, KeyCtrl, ctrl)
+	if ctrl > 0 {
 		NkInputKey(ctx, KeyCopy, keyPressed(win, glfw.KeyC))
 		NkInputKey(ctx, KeyPaste, keyPressed(win, glfw.KeyV))
 		NkInputKey(ctx, KeyCut, keyPressed(win, glfw.KeyX))
