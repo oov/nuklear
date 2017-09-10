@@ -52,6 +52,7 @@ TRANSLATOR:
       - {target: "_color_hsva_iv$", tips: [arr,0]}
       - {target: "_color_hsva_bv$", tips: [arr,0]}
       - {target: "_color_hsva_fv$", tips: [arr,0]}
+      - {target: "_draw_text$", tips: [ref,0,sref,0,ref,0,0]}
       - {target: "_edit_string$", tips: [ref,0,arr,ref,0,0]}
       - {target: "_edit_string_zero_terminated$", tips: [ref,0,arr,0,0]}
       - {target: "_font_atlas_add_from_memory$", tips: [ref,ref,size,0,ref]}
