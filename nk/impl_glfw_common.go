@@ -1,5 +1,6 @@
 // +build !android
 // +build !sdl2
+// +build !gdip
 
 package nk
 
