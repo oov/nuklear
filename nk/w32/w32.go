@@ -37,13 +37,7 @@ type Window struct {
 	mouseDoubleClickHandler MouseDoubleClickCallback
 }
 
-var handles = map[syscall.Handle]*Window{}
-
-func wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lParam uintptr) (lResult uintptr) {
-	w, ok := handles[hwnd]
-	if !ok {
-		return winapi.DefWindowProc(hwnd, uMsg, wParam, lParam)
-	}
+func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lParam uintptr) (lResult uintptr) {
 	switch uMsg {
 	case winapi.WM_CLOSE:
 		w.SetShouldClose(true)
@@ -52,7 +46,6 @@ func wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lParam uintptr) (
 		if w.sizeHandler != nil {
 			w.sizeHandler(w, int(winapi.LOWORD(lParam)), int(winapi.HIWORD(lParam)))
 		}
-
 	case winapi.WM_PAINT:
 		if w.paintHandler != nil {
 			var ps winapi.PAINTSTRUCT
@@ -61,10 +54,8 @@ func wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lParam uintptr) (
 			winapi.EndPaint(hwnd, &ps)
 			return 1
 		}
-
 	case winapi.WM_ERASEBKGND:
 		return 1
-
 	case winapi.WM_KEYDOWN, winapi.WM_KEYUP:
 		switch key := int(wParam); key {
 		case winapi.VK_SHIFT,
@@ -97,7 +88,6 @@ func wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lParam uintptr) (
 			}
 			return 1
 		}
-
 	case winapi.WM_LBUTTONDBLCLK:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
@@ -225,10 +215,13 @@ func CreateWindow(width, height int, title string, dummy *int, dummy2 *int) (*Wi
 	if err != nil {
 		return nil, err
 	}
+	w := &Window{
+		Keys: map[int]struct{}{},
+	}
 	atm, err := winapi.RegisterClassEx(&winapi.WNDCLASSEX{
 		CbSize:        uint32(unsafe.Sizeof(winapi.WNDCLASSEX{})),
 		Style:         0, //winapi.CS_DBLCLKS,
-		LpfnWndProc:   syscall.NewCallback(wndProc),
+		LpfnWndProc:   syscall.NewCallback(w.wndProc),
 		CbClsExtra:    0,
 		CbWndExtra:    0,
 		HInstance:     hInstance,
@@ -263,11 +256,7 @@ func CreateWindow(width, height int, title string, dummy *int, dummy2 *int) (*Wi
 	if err != nil {
 		return nil, err
 	}
-	w := &Window{
-		Handle: h,
-		Keys:   map[int]struct{}{},
-	}
-	handles[h] = w
+	w.Handle = h
 	return w, nil
 }
 
