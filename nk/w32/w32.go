@@ -1,5 +1,19 @@
 package w32
 
+/*
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+void poll_events() {
+	MSG m;
+	while (PeekMessageW(&m, 0, 0, 0, PM_REMOVE)) {
+		TranslateMessage(&m);
+		DispatchMessageW(&m);
+	}
+}
+*/
+import "C"
+
 import (
 	"syscall"
 	"unsafe"
@@ -356,9 +370,11 @@ func (w *Window) SetShouldClose(v bool) {
 }
 
 func PollEvents() {
-	var m winapi.MSG
-	for winapi.PeekMessage(&m, 0, 0, 0, winapi.PM_REMOVE) {
-		winapi.TranslateMessage(&m)
-		winapi.DispatchMessage(&m)
-	}
+	// If implements message loop at Go, its may cause a crash for some reasons...
+	C.poll_events()
+	// var m winapi.MSG
+	// for winapi.PeekMessage(&m, 0, 0, 0, winapi.PM_REMOVE) {
+	// 	winapi.TranslateMessage(&m)
+	// 	winapi.DispatchMessage(&m)
+	// }
 }
