@@ -48,6 +48,7 @@ const (
 	FF_DONTCARE         = 0
 
 	WM_SIZE          = 5
+	WM_KILLFOCUS     = 8
 	WM_PAINT         = 15
 	WM_CLOSE         = 16
 	WM_ERASEBKGND    = 20
