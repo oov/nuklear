@@ -49,6 +49,8 @@ type Window struct {
 		Y      int
 		Button int
 	}
+	Chars []rune
+
 	shouldClose             bool
 	dropHandler             DropCallback
 	sizeHandler             SizeCallback
@@ -79,6 +81,9 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 		}
 	case winapi.WM_ERASEBKGND:
 		return 1
+	case winapi.WM_CHAR:
+		w.Chars = append(w.Chars, rune(wParam))
+		return 0
 	case winapi.WM_KILLFOCUS:
 		w.Keys = map[int]struct{}{}
 		return 0

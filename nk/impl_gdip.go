@@ -447,9 +447,12 @@ func NkPlatformNewFrame() {
 	}
 	win.Mouse.Button &^= w32.MouseButtonLeftModified | w32.MouseButtonRightModified | w32.MouseButtonMiddleModified
 	// TODO: DOUBLE CLICK
-	// TODO: NkInputUnicode(ctx, rune)
 	NkInputScroll(ctx, NkVec2(0, state.wheelY))
 	state.wheelY = 0
+	for _, r := range win.Chars {
+		NkInputUnicode(ctx, Rune(r))
+	}
+	win.Chars = win.Chars[:0]
 	NkInputEnd(ctx)
 }
 
