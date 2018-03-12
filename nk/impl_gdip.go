@@ -426,7 +426,7 @@ func NkPlatformNewFrame() {
 		state.mouseL = isDown
 	}
 	if win.Mouse.Button&w32.MouseButtonRightModified == 0 {
-		NkInputButton(ctx, ButtonRight, x, y, b2i(state.mouseL))
+		NkInputButton(ctx, ButtonRight, x, y, b2i(state.mouseR))
 	} else {
 		isDown := win.Mouse.Button&w32.MouseButtonRight != 0
 		NkInputButton(ctx, ButtonRight, x, y, b2i(isDown))
@@ -436,7 +436,7 @@ func NkPlatformNewFrame() {
 		state.mouseR = isDown
 	}
 	if win.Mouse.Button&w32.MouseButtonMiddleModified == 0 {
-		NkInputButton(ctx, ButtonMiddle, x, y, b2i(state.mouseL))
+		NkInputButton(ctx, ButtonMiddle, x, y, b2i(state.mouseM))
 	} else {
 		isDown := win.Mouse.Button&w32.MouseButtonMiddle != 0
 		NkInputButton(ctx, ButtonMiddle, x, y, b2i(isDown))
