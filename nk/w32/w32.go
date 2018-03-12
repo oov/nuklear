@@ -81,6 +81,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 		return 1
 	case winapi.WM_KILLFOCUS:
 		w.Keys = map[int]struct{}{}
+		return 0
 	case winapi.WM_KEYDOWN, winapi.WM_KEYUP:
 		switch key := int(wParam); key {
 		case winapi.VK_SHIFT,
