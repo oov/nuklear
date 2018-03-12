@@ -415,9 +415,37 @@ func NkPlatformNewFrame() {
 	}
 	x, y := int32(win.Mouse.X), int32(win.Mouse.Y)
 	NkInputMotion(ctx, x, y)
-	NkInputButton(ctx, ButtonLeft, x, y, b2i(win.Mouse.Left))
-	NkInputButton(ctx, ButtonMiddle, x, y, b2i(win.Mouse.Middle))
-	NkInputButton(ctx, ButtonRight, x, y, b2i(win.Mouse.Right))
+	if win.Mouse.Button&w32.MouseButtonLeftModified == 0 {
+		NkInputButton(ctx, ButtonLeft, x, y, b2i(state.mouseL))
+	} else {
+		isDown := win.Mouse.Button&w32.MouseButtonLeft != 0
+		NkInputButton(ctx, ButtonLeft, x, y, b2i(isDown))
+		if state.mouseL == isDown {
+			NkInputButton(ctx, ButtonLeft, x, y, b2i(isDown))
+		}
+		state.mouseL = isDown
+	}
+	if win.Mouse.Button&w32.MouseButtonRightModified == 0 {
+		NkInputButton(ctx, ButtonRight, x, y, b2i(state.mouseL))
+	} else {
+		isDown := win.Mouse.Button&w32.MouseButtonRight != 0
+		NkInputButton(ctx, ButtonRight, x, y, b2i(isDown))
+		if state.mouseL == isDown {
+			NkInputButton(ctx, ButtonRight, x, y, b2i(isDown))
+		}
+		state.mouseR = isDown
+	}
+	if win.Mouse.Button&w32.MouseButtonMiddleModified == 0 {
+		NkInputButton(ctx, ButtonMiddle, x, y, b2i(state.mouseL))
+	} else {
+		isDown := win.Mouse.Button&w32.MouseButtonMiddle != 0
+		NkInputButton(ctx, ButtonMiddle, x, y, b2i(isDown))
+		if state.mouseL == isDown {
+			NkInputButton(ctx, ButtonMiddle, x, y, b2i(isDown))
+		}
+		state.mouseM = isDown
+	}
+	win.Mouse.Button &^= w32.MouseButtonLeftModified | w32.MouseButtonRightModified | w32.MouseButtonMiddleModified
 	// TODO: DOUBLE CLICK
 	// TODO: NkInputUnicode(ctx, rune)
 	NkInputScroll(ctx, NkVec2(0, state.wheelY))
@@ -637,12 +665,13 @@ func NkPlatformRender(aa AntiAliasing, clearColor Color) {
 }
 
 type platformState struct {
-	win    *w32.Window
-	wheelY float32
-	hdc    syscall.Handle
-	pen    winapi.GpPen
-	brush  winapi.GpBrush
-	hrgn   syscall.Handle
+	win                    *w32.Window
+	wheelY                 float32
+	mouseL, mouseR, mouseM bool
+	hdc                    syscall.Handle
+	pen                    winapi.GpPen
+	brush                  winapi.GpBrush
+	hrgn                   syscall.Handle
 
 	bmp *internal.Bitmap
 	ctx *Context

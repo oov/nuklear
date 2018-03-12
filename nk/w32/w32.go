@@ -21,6 +21,18 @@ import (
 	"github.com/golang-ui/nuklear/nk/internal/winapi"
 )
 
+const (
+	MouseButtonLeft           = 1
+	MouseButtonLeftModified   = 2
+	MouseButtonLeftDouble     = 4
+	MouseButtonRight          = 8
+	MouseButtonRightModified  = 16
+	MouseButtonRightDouble    = 32
+	MouseButtonMiddle         = 64
+	MouseButtonMiddleModified = 128
+	MouseButtonMiddleDouble   = 256
+)
+
 func Init() error {
 	return nil
 }
@@ -33,12 +45,9 @@ type Window struct {
 	Handle syscall.Handle
 	Keys   map[int]struct{}
 	Mouse  struct {
-		X int
-		Y int
-
-		Left   bool
-		Right  bool
-		Middle bool
+		X      int
+		Y      int
+		Button int
 	}
 	shouldClose             bool
 	dropHandler             DropCallback
@@ -107,6 +116,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_LBUTTONDBLCLK:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
+		w.Mouse.Button |= MouseButtonLeftDouble
 		if w.mouseDoubleClickHandler != nil {
 			w.mouseDoubleClickHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_LBUTTON)
 		}
@@ -114,7 +124,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_LBUTTONDOWN:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
-		w.Mouse.Left = true
+		w.Mouse.Button |= MouseButtonLeft + MouseButtonLeftModified
 		if w.mouseButtonHandler != nil {
 			w.mouseButtonHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_LBUTTON, true)
 		}
@@ -123,7 +133,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_LBUTTONUP:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
-		w.Mouse.Left = false
+		w.Mouse.Button = (w.Mouse.Button | MouseButtonLeftModified) &^ MouseButtonLeft
 		if w.mouseButtonHandler != nil {
 			w.mouseButtonHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_LBUTTON, false)
 		}
@@ -132,6 +142,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_RBUTTONDBLCLK:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
+		w.Mouse.Button |= MouseButtonRightDouble
 		if w.mouseDoubleClickHandler != nil {
 			w.mouseDoubleClickHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_RBUTTON)
 		}
@@ -139,7 +150,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_RBUTTONDOWN:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
-		w.Mouse.Right = true
+		w.Mouse.Button |= MouseButtonRight + MouseButtonRightModified
 		if w.mouseButtonHandler != nil {
 			w.mouseButtonHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_RBUTTON, true)
 		}
@@ -148,7 +159,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_RBUTTONUP:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
-		w.Mouse.Right = false
+		w.Mouse.Button = (w.Mouse.Button | MouseButtonRightModified) &^ MouseButtonRight
 		if w.mouseButtonHandler != nil {
 			w.mouseButtonHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_RBUTTON, false)
 		}
@@ -157,6 +168,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_MBUTTONDBLCLK:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
+		w.Mouse.Button |= MouseButtonMiddleDouble
 		if w.mouseDoubleClickHandler != nil {
 			w.mouseDoubleClickHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_MBUTTON)
 		}
@@ -164,7 +176,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_MBUTTONDOWN:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
-		w.Mouse.Middle = true
+		w.Mouse.Button |= MouseButtonMiddle + MouseButtonMiddleModified
 		if w.mouseButtonHandler != nil {
 			w.mouseButtonHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_MBUTTON, true)
 		}
@@ -173,7 +185,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 	case winapi.WM_MBUTTONUP:
 		w.Mouse.X = int(int16(winapi.LOWORD(lParam)))
 		w.Mouse.Y = int(int16(winapi.HIWORD(lParam)))
-		w.Mouse.Middle = false
+		w.Mouse.Button = (w.Mouse.Button | MouseButtonMiddleModified) &^ MouseButtonMiddle
 		if w.mouseButtonHandler != nil {
 			w.mouseButtonHandler(w, w.Mouse.X, w.Mouse.Y, winapi.VK_MBUTTON, false)
 		}
