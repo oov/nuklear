@@ -86,6 +86,7 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 		return 0
 	case winapi.WM_KILLFOCUS:
 		w.Keys = map[int]struct{}{}
+		w.Mouse.Button = MouseButtonLeftModified | MouseButtonRightModified | MouseButtonMiddleModified
 		return 0
 	case winapi.WM_KEYDOWN, winapi.WM_KEYUP:
 		switch key := int(wParam); key {
