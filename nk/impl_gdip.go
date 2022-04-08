@@ -242,7 +242,7 @@ func NkCreateFontFromBytes(data []byte, height int) (*GdipFont, error) {
 	gf := GdipFont{
 		pf: pf,
 		f:  f,
-		uf: C.create_gdip_font(C.HANDLE(f.DC), C.HANDLE(f.Handle), C.float(float32(f.Height))),
+		uf: C.create_gdip_font(C.HANDLE(unsafe.Pointer(f.DC)), C.HANDLE(unsafe.Pointer(f.Handle)), C.float(float32(f.Height))),
 	}
 	return &gf, nil
 }
@@ -605,7 +605,7 @@ func NkPlatformRender(aa AntiAliasing, clearColor Color) {
 				if state.hrgn != 0 {
 					winapi.SelectClipRgn(hdc, state.hrgn)
 				}
-				old := winapi.SelectObject(hdc, syscall.Handle(font.hfont))
+				old := winapi.SelectObject(hdc, syscall.Handle(unsafe.Pointer(font.hfont)))
 				oldMode, err := winapi.SetBkMode(hdc, winapi.TRANSPARENT)
 				if err != nil {
 					return err
