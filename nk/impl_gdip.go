@@ -1,3 +1,4 @@
+//go:build gdip
 // +build gdip
 
 package nk
@@ -67,9 +68,179 @@ struct nk_user_font *create_gdip_font(HANDLE hdc, HANDLE hfont, float height) {
 	return uf;
 }
 
-void destroy_gdip_font(struct nk_user_font *f) {
-	free(f->userdata.ptr);
+void destroy_gdip_font(struct nk_user_font *uf) {
+	struct nk_gdip_font *f = (struct nk_gdip_font*)uf->userdata.ptr;
 	free(f);
+	free(uf);
+}
+
+// Font chain for fallback support
+#define NK_GDIP_FONT_CHAIN_MAGIC 0x4643484E  // "FCHN" - Font CHaiN
+
+struct nk_gdip_font_chain {
+	unsigned int magic;      // Magic number to identify font chain
+	int count;               // Number of fonts in chain
+	int capacity;            // Capacity of fonts array
+	struct nk_gdip_font **fonts;  // Array of font pointers
+};
+
+// Check if a font has a glyph for a specific UTF-16 character
+static int gdip_font_has_glyph(struct nk_gdip_font *f, WCHAR wch) {
+	WORD gi;
+	DWORD ret = GetGlyphIndicesW((HDC)f->hdc, &wch, 1, &gi, GGI_MARK_NONEXISTING_GLYPHS);
+	if (ret == GDI_ERROR) return 1;  // Assume has glyph on error
+	return gi != 0xFFFF;
+}
+
+// Find the appropriate font for a character in the chain
+static int gdip_font_chain_find_font(struct nk_gdip_font_chain *fc, WCHAR wch) {
+	for (int i = 0; i < fc->count; i++) {
+		if (gdip_font_has_glyph(fc->fonts[i], wch)) {
+			return i;
+		}
+	}
+	return 0;  // Default to first font if none has the glyph
+}
+
+// Text width calculation for font chain
+static float gdip_font_chain_text_width(nk_handle h, float height, const char* str, int len) {
+	struct nk_gdip_font_chain *fc = (struct nk_gdip_font_chain*)h.ptr;
+	if (fc->count == 0) return 0;
+
+	int wsz = MultiByteToWideChar(CP_UTF8, 0, str, len, NULL, 0);
+	if (wsz == 0) return 0;
+	WCHAR* wstr = (WCHAR*)_alloca(wsz * sizeof(WCHAR));
+	MultiByteToWideChar(CP_UTF8, 0, str, len, wstr, wsz);
+
+	float total_width = 0;
+	int seg_start = 0;
+	int current_font = gdip_font_chain_find_font(fc, wstr[0]);
+
+	for (int i = 1; i <= wsz; i++) {
+		int font_idx = (i < wsz) ? gdip_font_chain_find_font(fc, wstr[i]) : -1;
+
+		if (font_idx != current_font || i == wsz) {
+			// End of segment, measure it
+			SIZE sz;
+			struct nk_gdip_font *f = fc->fonts[current_font];
+			HGDIOBJ old = SelectObject((HDC)f->hdc, (HGDIOBJ)f->hfont);
+			if (GetTextExtentPoint32W((HDC)f->hdc, wstr + seg_start, i - seg_start, &sz)) {
+				total_width += (float)sz.cx;
+			}
+			SelectObject((HDC)f->hdc, old);
+
+			seg_start = i;
+			current_font = font_idx;
+		}
+	}
+
+	return total_width;
+}
+
+struct nk_user_font *create_gdip_font_chain(float height) {
+	struct nk_gdip_font_chain *fc = malloc(sizeof(struct nk_gdip_font_chain));
+	fc->magic = NK_GDIP_FONT_CHAIN_MAGIC;
+	fc->count = 0;
+	fc->capacity = 4;
+	fc->fonts = malloc(sizeof(struct nk_gdip_font*) * fc->capacity);
+
+	struct nk_user_font *uf = malloc(sizeof(struct nk_user_font));
+	uf->userdata.ptr = fc;
+	uf->height = height;
+	uf->width = &gdip_font_chain_text_width;
+	return uf;
+}
+
+void gdip_font_chain_add(struct nk_user_font *uf, HANDLE hdc, HANDLE hfont) {
+	struct nk_gdip_font_chain *fc = (struct nk_gdip_font_chain*)uf->userdata.ptr;
+
+	if (fc->count >= fc->capacity) {
+		fc->capacity *= 2;
+		fc->fonts = realloc(fc->fonts, sizeof(struct nk_gdip_font*) * fc->capacity);
+	}
+
+	struct nk_gdip_font *f = malloc(sizeof(struct nk_gdip_font));
+	f->hdc = hdc;
+	f->hfont = hfont;
+	fc->fonts[fc->count++] = f;
+}
+
+void destroy_gdip_font_chain(struct nk_user_font *uf) {
+	struct nk_gdip_font_chain *fc = (struct nk_gdip_font_chain*)uf->userdata.ptr;
+	for (int i = 0; i < fc->count; i++) {
+		free(fc->fonts[i]);
+	}
+	free(fc->fonts);
+	free(fc);
+	free(uf);
+}
+
+int is_gdip_font_chain(struct nk_user_font *uf) {
+	struct nk_gdip_font_chain *fc = (struct nk_gdip_font_chain*)uf->userdata.ptr;
+	return fc->magic == NK_GDIP_FONT_CHAIN_MAGIC;
+}
+
+int gdip_font_chain_count(struct nk_user_font *uf) {
+	struct nk_gdip_font_chain *fc = (struct nk_gdip_font_chain*)uf->userdata.ptr;
+	return fc->count;
+}
+
+struct nk_gdip_font *gdip_font_chain_get(struct nk_user_font *uf, int index) {
+	struct nk_gdip_font_chain *fc = (struct nk_gdip_font_chain*)uf->userdata.ptr;
+	if (index < 0 || index >= fc->count) return NULL;
+	return fc->fonts[index];
+}
+
+// Segment information for font chain text rendering
+struct nk_gdip_text_segment {
+	int start;      // Start index in UTF-16 string
+	int length;     // Length in UTF-16 characters
+	int font_index; // Index of font to use
+	int x_offset;   // X offset from start of text
+};
+
+// Get segments for rendering text with font chain
+// Returns number of segments, fills segments array (caller must provide enough space)
+// max_segments should be at least equal to the UTF-16 string length
+int gdip_font_chain_get_segments(struct nk_user_font *uf, const WCHAR *wstr, int wsz,
+                                  struct nk_gdip_text_segment *segments, int max_segments) {
+	struct nk_gdip_font_chain *fc = (struct nk_gdip_font_chain*)uf->userdata.ptr;
+	if (fc->count == 0 || wsz == 0) return 0;
+
+	int seg_count = 0;
+	int seg_start = 0;
+	int current_font = gdip_font_chain_find_font(fc, wstr[0]);
+	int x_offset = 0;
+
+	for (int i = 1; i <= wsz; i++) {
+		int font_idx = (i < wsz) ? gdip_font_chain_find_font(fc, wstr[i]) : -1;
+
+		if (font_idx != current_font || i == wsz) {
+			// End of segment
+			if (seg_count < max_segments) {
+				segments[seg_count].start = seg_start;
+				segments[seg_count].length = i - seg_start;
+				segments[seg_count].font_index = current_font;
+				segments[seg_count].x_offset = x_offset;
+
+				// Calculate width for x_offset of next segment
+				SIZE sz;
+				struct nk_gdip_font *f = fc->fonts[current_font];
+				HGDIOBJ old = SelectObject((HDC)f->hdc, (HGDIOBJ)f->hfont);
+				if (GetTextExtentPoint32W((HDC)f->hdc, wstr + seg_start, i - seg_start, &sz)) {
+					x_offset += sz.cx;
+				}
+				SelectObject((HDC)f->hdc, old);
+
+				seg_count++;
+			}
+
+			seg_start = i;
+			current_font = font_idx;
+		}
+	}
+
+	return seg_count;
 }
 
 */
@@ -245,6 +416,96 @@ func NkCreateFontFromBytes(data []byte, height int) (*GdipFont, error) {
 		uf: C.create_gdip_font(C.HANDLE(unsafe.Pointer(f.DC)), C.HANDLE(unsafe.Pointer(f.Handle)), C.float(float32(f.Height))),
 	}
 	return &gf, nil
+}
+
+// fontChainEntry represents an entry in the font chain.
+// It can be either a GdipFont (from TTF bytes) or a system font.
+type fontChainEntry struct {
+	gdipFont   *GdipFont      // non-nil if created from bytes
+	systemFont *internal.Font // non-nil if created from system font name
+}
+
+func (e *fontChainEntry) Close() error {
+	if e.gdipFont != nil {
+		return e.gdipFont.Close()
+	}
+	if e.systemFont != nil {
+		return e.systemFont.Close()
+	}
+	return nil
+}
+
+// FontChain provides font fallback support for multi-language text rendering.
+// When rendering text, if the primary font doesn't contain a glyph for a character,
+// the chain will try subsequent fonts in order until one with the glyph is found.
+type FontChain struct {
+	entries []*fontChainEntry
+	height  int
+	uf      *C.struct_nk_user_font
+}
+
+// NewFontChain creates a new font chain with the specified height.
+// The primary font should be added first using AddFont or AddSystemFont.
+func NewFontChain(height int) *FontChain {
+	return &FontChain{
+		entries: make([]*fontChainEntry, 0, 4),
+		height:  height,
+		uf:      C.create_gdip_font_chain(C.float(float32(height))),
+	}
+}
+
+// AddFont adds a font to the chain. Fonts are tried in the order they are added.
+// The first font added is the primary font.
+// The FontChain takes ownership of the font and will close it when the chain is closed.
+func (fc *FontChain) AddFont(font *GdipFont) {
+	fc.entries = append(fc.entries, &fontChainEntry{gdipFont: font})
+	C.gdip_font_chain_add(fc.uf, C.HANDLE(unsafe.Pointer(font.f.DC)), C.HANDLE(unsafe.Pointer(font.f.Handle)))
+}
+
+// AddFontFromBytes creates a font from TTF data and adds it to the chain.
+func (fc *FontChain) AddFontFromBytes(data []byte) error {
+	font, err := NkCreateFontFromBytes(data, fc.height)
+	if err != nil {
+		return err
+	}
+	fc.AddFont(font)
+	return nil
+}
+
+// AddSystemFont adds a system font by name to the chain.
+// Example names: "MS UI Gothic", "Arial", "Segoe UI", "Yu Gothic UI"
+func (fc *FontChain) AddSystemFont(name string) error {
+	f, err := internal.NewFont(name, fc.height)
+	if err != nil {
+		return err
+	}
+	fc.entries = append(fc.entries, &fontChainEntry{systemFont: f})
+	C.gdip_font_chain_add(fc.uf, C.HANDLE(unsafe.Pointer(f.DC)), C.HANDLE(unsafe.Pointer(f.Handle)))
+	return nil
+}
+
+// Handle returns the nuklear user font handle for this font chain.
+func (fc *FontChain) Handle() *UserFont {
+	return NewUserFontRef(unsafe.Pointer(fc.uf))
+}
+
+// Close releases all resources associated with the font chain.
+// This also closes all fonts that were added to the chain.
+func (fc *FontChain) Close() error {
+	for _, e := range fc.entries {
+		e.Close()
+	}
+	fc.entries = nil
+	if fc.uf != nil {
+		C.destroy_gdip_font_chain(fc.uf)
+		fc.uf = nil
+	}
+	return nil
+}
+
+// FontCount returns the number of fonts in the chain.
+func (fc *FontChain) FontCount() int {
+	return len(fc.entries)
 }
 
 type GdipImage struct {
@@ -600,28 +861,74 @@ func NkPlatformRender(aa AntiAliasing, clearColor Color) {
 			if err != nil {
 				panic(err)
 			}
-			font := *(**C.struct_nk_gdip_font)(unsafe.Pointer(&p.font.userdata))
-			if err = bmp.UseHDC(func(hdc syscall.Handle) error {
-				if state.hrgn != 0 {
-					winapi.SelectClipRgn(hdc, state.hrgn)
-				}
-				old := winapi.SelectObject(hdc, syscall.Handle(unsafe.Pointer(font.hfont)))
-				oldMode, err := winapi.SetBkMode(hdc, winapi.TRANSPARENT)
-				if err != nil {
-					return err
-				}
-				oldCol, err := winapi.SetTextColor(hdc, convColorref(&p.foreground))
-				if err != nil {
-					return err
-				}
+			uf := (*C.struct_nk_user_font)(unsafe.Pointer(p.font))
+			isFontChain := C.is_gdip_font_chain(uf) != 0
 
-				err = winapi.ExtTextOut(hdc, int(p.x), int(p.y), 0, nil, &s[0], len(s)-1, nil)
-				winapi.SelectObject(hdc, old)
-				winapi.SetBkMode(hdc, oldMode)
-				winapi.SetTextColor(hdc, oldCol)
-				return err
-			}); err != nil {
-				panic(err)
+			if isFontChain {
+				// Font chain: render with segmented approach
+				if err = bmp.UseHDC(func(hdc syscall.Handle) error {
+					if state.hrgn != 0 {
+						winapi.SelectClipRgn(hdc, state.hrgn)
+					}
+					oldMode, err := winapi.SetBkMode(hdc, winapi.TRANSPARENT)
+					if err != nil {
+						return err
+					}
+					oldCol, err := winapi.SetTextColor(hdc, convColorref(&p.foreground))
+					if err != nil {
+						return err
+					}
+
+					// Get segments for rendering
+					wsz := len(s) - 1 // Exclude null terminator
+					if wsz > 0 {
+						segments := make([]C.struct_nk_gdip_text_segment, wsz)
+						segCount := C.gdip_font_chain_get_segments(uf, (*C.WCHAR)(unsafe.Pointer(&s[0])), C.int(wsz), &segments[0], C.int(wsz))
+
+						for i := 0; i < int(segCount); i++ {
+							seg := segments[i]
+							font := C.gdip_font_chain_get(uf, seg.font_index)
+							if font == nil {
+								continue
+							}
+
+							old := winapi.SelectObject(hdc, syscall.Handle(unsafe.Pointer(font.hfont)))
+							winapi.ExtTextOut(hdc, int(p.x)+int(seg.x_offset), int(p.y), 0, nil, &s[seg.start], int(seg.length), nil)
+							winapi.SelectObject(hdc, old)
+						}
+					}
+
+					winapi.SetBkMode(hdc, oldMode)
+					winapi.SetTextColor(hdc, oldCol)
+					return nil
+				}); err != nil {
+					panic(err)
+				}
+			} else {
+				// Single font: original rendering
+				font := *(**C.struct_nk_gdip_font)(unsafe.Pointer(&p.font.userdata))
+				if err = bmp.UseHDC(func(hdc syscall.Handle) error {
+					if state.hrgn != 0 {
+						winapi.SelectClipRgn(hdc, state.hrgn)
+					}
+					old := winapi.SelectObject(hdc, syscall.Handle(unsafe.Pointer(font.hfont)))
+					oldMode, err := winapi.SetBkMode(hdc, winapi.TRANSPARENT)
+					if err != nil {
+						return err
+					}
+					oldCol, err := winapi.SetTextColor(hdc, convColorref(&p.foreground))
+					if err != nil {
+						return err
+					}
+
+					err = winapi.ExtTextOut(hdc, int(p.x), int(p.y), 0, nil, &s[0], len(s)-1, nil)
+					winapi.SelectObject(hdc, old)
+					winapi.SetBkMode(hdc, oldMode)
+					winapi.SetTextColor(hdc, oldCol)
+					return err
+				}); err != nil {
+					panic(err)
+				}
 			}
 		case CommandTypeCurve:
 			p := (*CommandCurve)(unsafe.Pointer(cmd))

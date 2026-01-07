@@ -53,6 +53,38 @@ func (f *Font) Width(str string) (int, error) {
 	return int(sz.CX), nil
 }
 
+// HasGlyph checks if the font contains a glyph for the given rune.
+// Returns true if the glyph exists, false otherwise.
+func (f *Font) HasGlyph(r rune) bool {
+	// Convert rune to UTF-16
+	var buf [2]uint16
+	var n int
+	if r <= 0xFFFF {
+		buf[0] = uint16(r)
+		n = 1
+	} else {
+		// Surrogate pair for characters outside BMP
+		r -= 0x10000
+		buf[0] = uint16(0xD800 + (r >> 10))
+		buf[1] = uint16(0xDC00 + (r & 0x3FF))
+		n = 2
+	}
+
+	var indices [2]uint16
+	ret, err := winapi.GetGlyphIndices(f.DC, &buf[0], n, &indices[0], winapi.GGI_MARK_NONEXISTING_GLYPHS)
+	if err != nil || ret == 0 {
+		return false
+	}
+
+	// Check if any index is 0xFFFF (glyph not found)
+	for i := 0; i < n; i++ {
+		if indices[i] == 0xFFFF {
+			return false
+		}
+	}
+	return true
+}
+
 func (f *Font) Close() error {
 	h := winapi.SelectObject(f.DC, f.oldFont)
 	winapi.DeleteDC(f.DC)
@@ -84,7 +116,7 @@ func NewFont(name string, size int) (*Font, error) {
 		winapi.DEFAULT_CHARSET,
 		winapi.OUT_DEFAULT_PRECIS,
 		winapi.CLIP_DEFAULT_PRECIS,
-		winapi.DEFAULT_QUALITY,
+		winapi.CLEARTYPE_QUALITY,
 		winapi.DEFAULT_PITCH|winapi.FF_DONTCARE,
 		s,
 	)

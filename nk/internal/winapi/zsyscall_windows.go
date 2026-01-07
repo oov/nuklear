@@ -87,6 +87,7 @@ var (
 	procSetTextColor                 = modgdi32.NewProc("SetTextColor")
 	procCreateRectRgn                = modgdi32.NewProc("CreateRectRgn")
 	procSelectClipRgn                = modgdi32.NewProc("SelectClipRgn")
+	procGetGlyphIndicesW             = modgdi32.NewProc("GetGlyphIndicesW")
 	procDragAcceptFiles              = modshell32.NewProc("DragAcceptFiles")
 	procDragQueryFileW               = modshell32.NewProc("DragQueryFileW")
 	procDragFinish                   = modshell32.NewProc("DragFinish")
@@ -551,6 +552,19 @@ func SelectClipRgn(hdc syscall.Handle, hrgn syscall.Handle) (c int, err error) {
 	r0, _, e1 := syscall.Syscall(procSelectClipRgn.Addr(), 2, uintptr(hdc), uintptr(hrgn), 0)
 	c = int(r0)
 	if c == 0 {
+		if e1 != 0 {
+			err = errnoErr(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func GetGlyphIndices(hdc syscall.Handle, str *uint16, strlen int, pgi *uint16, fl uint32) (n uint32, err error) {
+	r0, _, e1 := syscall.Syscall6(procGetGlyphIndicesW.Addr(), 5, uintptr(hdc), uintptr(unsafe.Pointer(str)), uintptr(strlen), uintptr(unsafe.Pointer(pgi)), uintptr(fl), 0)
+	n = uint32(r0)
+	if n == 0xffffffff {
 		if e1 != 0 {
 			err = errnoErr(e1)
 		} else {

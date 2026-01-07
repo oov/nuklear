@@ -44,6 +44,7 @@ const (
 	OUT_DEFAULT_PRECIS  = 0
 	CLIP_DEFAULT_PRECIS = 0
 	DEFAULT_QUALITY     = 0
+	CLEARTYPE_QUALITY   = 5
 	DEFAULT_PITCH       = 0
 	FF_DONTCARE         = 0
 
@@ -211,6 +212,9 @@ const (
 	DIB_RGB_COLORS = 0
 
 	BI_RGB = 0
+
+	// GetGlyphIndices flags
+	GGI_MARK_NONEXISTING_GLYPHS = 0x0001
 )
 
 type WNDCLASSEX struct {
@@ -371,6 +375,7 @@ type BITMAPINFO struct {
 //sys	SetTextColor(hdc syscall.Handle, col COLORREF) (prevCol COLORREF, err error) [failretval==CLR_INVALID] = gdi32.SetTextColor
 //sys	CreateRectRgn(left int, top int, right int, bottom int) (hrgn syscall.Handle, err error) = gdi32.CreateRectRgn
 //sys	SelectClipRgn(hdc syscall.Handle, hrgn syscall.Handle) (c int, err error) = gdi32.SelectClipRgn
+//sys	GetGlyphIndices(hdc syscall.Handle, str *uint16, strlen int, pgi *uint16, fl uint32) (n uint32, err error) [failretval==0xffffffff] = gdi32.GetGlyphIndicesW
 
 //sys	DragAcceptFiles(hwnd syscall.Handle, accept bool) = shell32.DragAcceptFiles
 //sys	DragQueryFile(drop syscall.Handle, file int, str *uint16, strlen int) (n int) = shell32.DragQueryFileW
