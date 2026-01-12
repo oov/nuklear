@@ -51,6 +51,7 @@ const (
 	WM_SIZE          = 5
 	WM_KILLFOCUS     = 8
 	WM_PAINT         = 15
+	WM_DPICHANGED    = 0x02E0
 	WM_CLOSE         = 16
 	WM_ERASEBKGND    = 20
 	WM_KEYDOWN       = 256
@@ -72,6 +73,11 @@ const (
 	WM_DROPFILES     = 563
 
 	WHEEL_DELTA = 120
+
+	LOGPIXELSX = 88
+
+	SWP_NOZORDER   = 0x0004
+	SWP_NOACTIVATE = 0x0010
 
 	PM_REMOVE = 1
 
@@ -215,6 +221,8 @@ const (
 
 	// GetGlyphIndices flags
 	GGI_MARK_NONEXISTING_GLYPHS = 0x0001
+
+	DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ^uintptr(3) // (HANDLE)-4
 )
 
 type WNDCLASSEX struct {

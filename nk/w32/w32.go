@@ -15,6 +15,7 @@ void poll_events() {
 import "C"
 
 import (
+	"sync/atomic"
 	"syscall"
 	"unsafe"
 
@@ -34,6 +35,8 @@ const (
 )
 
 func Init() error {
+	// Best-effort: enable per-monitor DPI awareness so WM_DPICHANGED is delivered.
+	winapi.SetPerMonitorDPIAwareV2()
 	return nil
 }
 
@@ -51,10 +54,13 @@ type Window struct {
 	}
 	Chars []rune
 
+	dpi uint32 // updated on WM_DPICHANGED
+
 	shouldClose             bool
 	dropHandler             DropCallback
 	sizeHandler             SizeCallback
 	paintHandler            PaintCallback
+	dpiHandler              DPIChangedCallback
 	keyHandler              KeyCallback
 	mouseButtonHandler      MouseButtonCallback
 	mouseMoveHandler        MouseMoveCallback
@@ -68,9 +74,33 @@ func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lPara
 		w.SetShouldClose(true)
 		return 0
 	case winapi.WM_SIZE:
+		// Fallback path: if WM_DPICHANGED wasn't delivered (e.g. non-top-level/parented window),
+		// re-check DPI on resize and fire the handler on change.
+		{
+			dpi := winapi.DpiForWindow(hwnd)
+			prev := atomic.LoadUint32(&w.dpi)
+			if dpi != 0 && dpi != prev {
+				atomic.StoreUint32(&w.dpi, dpi)
+				if w.dpiHandler != nil {
+					w.dpiHandler(w, dpi)
+				}
+			}
+		}
 		if w.sizeHandler != nil {
 			w.sizeHandler(w, int(winapi.LOWORD(lParam)), int(winapi.HIWORD(lParam)))
 		}
+	case winapi.WM_DPICHANGED:
+		dpi := uint32(winapi.LOWORD(wParam))
+		if dpi != 0 {
+			atomic.StoreUint32(&w.dpi, dpi)
+			if w.dpiHandler != nil {
+				w.dpiHandler(w, dpi)
+			}
+		}
+		// Apply suggested window rect (per Microsoft guidance).
+		r := winapi.RectFromLPARAM(lParam)
+		winapi.SetWindowPosFromRect(hwnd, r, winapi.SWP_NOZORDER|winapi.SWP_NOACTIVATE)
+		return 0
 	case winapi.WM_PAINT:
 		if w.paintHandler != nil {
 			var ps winapi.PAINTSTRUCT
@@ -252,6 +282,7 @@ func CreateWindow(width, height int, title string, dummy *int, dummy2 *int) (*Wi
 	}
 	w := &Window{
 		Keys: map[int]struct{}{},
+		dpi:  96,
 	}
 	atm, err := winapi.RegisterClassEx(&winapi.WNDCLASSEX{
 		CbSize:        uint32(unsafe.Sizeof(winapi.WNDCLASSEX{})),
@@ -292,6 +323,7 @@ func CreateWindow(width, height int, title string, dummy *int, dummy2 *int) (*Wi
 		return nil, err
 	}
 	w.Handle = h
+	atomic.StoreUint32(&w.dpi, winapi.DpiForWindow(w.Handle))
 	return w, nil
 }
 
@@ -318,6 +350,26 @@ func (w *Window) SetPaintCallback(f PaintCallback) (prev PaintCallback) {
 	prev = w.paintHandler
 	w.paintHandler = f
 	return prev
+}
+
+type DPIChangedCallback func(w *Window, dpi uint32)
+
+func (w *Window) SetDPIChangedCallback(f DPIChangedCallback) (prev DPIChangedCallback) {
+	prev = w.dpiHandler
+	w.dpiHandler = f
+	return prev
+}
+
+func (w *Window) DPI() uint32 {
+	dpi := atomic.LoadUint32(&w.dpi)
+	if dpi == 0 {
+		return 96
+	}
+	return dpi
+}
+
+func (w *Window) Scale() float32 {
+	return float32(w.DPI()) / 96.0
 }
 
 type KeyCallback func(w *Window, key int, down bool)
