@@ -34,6 +34,39 @@ const (
 	MouseButtonMiddleDouble   = 256
 )
 
+// Cursor types for SetCursor
+const (
+	CursorArrow   = iota // Default arrow cursor
+	CursorHand           // Hand/pointer cursor (for clickable items)
+	CursorSizeWE         // Horizontal resize cursor
+	CursorSizeNS         // Vertical resize cursor
+	CursorSizeAll        // Move/resize all directions cursor
+	CursorWait           // Wait/hourglass cursor
+)
+
+// System cursor IDs (Windows IDC_* constants)
+const (
+	idcArrow   = 32512
+	idcHand    = 32649
+	idcSizeWE  = 32644
+	idcSizeNS  = 32645
+	idcSizeAll = 32646
+	idcWait    = 32514
+)
+
+var (
+	// Cached system cursors
+	systemCursors [6]syscall.Handle
+)
+
+func init() {
+	// Load system cursors once
+	ids := []uintptr{idcArrow, idcHand, idcSizeWE, idcSizeNS, idcSizeAll, idcWait}
+	for i, id := range ids {
+		systemCursors[i], _ = winapi.LoadCursor(0, id)
+	}
+}
+
 func Init() error {
 	// Best-effort: enable per-monitor DPI awareness so WM_DPICHANGED is delivered.
 	winapi.SetPerMonitorDPIAwareV2()
@@ -54,7 +87,8 @@ type Window struct {
 	}
 	Chars []rune
 
-	dpi uint32 // updated on WM_DPICHANGED
+	dpi    uint32 // updated on WM_DPICHANGED
+	cursor int    // current cursor type (CursorArrow, CursorHand, etc.)
 
 	shouldClose             bool
 	dropHandler             DropCallback
@@ -68,11 +102,29 @@ type Window struct {
 	mouseDoubleClickHandler MouseDoubleClickCallback
 }
 
+// SetCursor sets the mouse cursor type for this window.
+// Use CursorArrow, CursorHand, CursorSizeWE, etc.
+func (w *Window) SetCursor(cursor int) {
+	if cursor >= 0 && cursor < len(systemCursors) {
+		w.cursor = cursor
+	}
+}
+
 func (w *Window) wndProc(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lParam uintptr) (lResult uintptr) {
 	switch uMsg {
 	case winapi.WM_CLOSE:
 		w.SetShouldClose(true)
 		return 0
+	case winapi.WM_SETCURSOR:
+		// Handle cursor change only for client area (HTCLIENT)
+		if winapi.LOWORD(lParam) == winapi.HTCLIENT {
+			cursor := w.cursor
+			if cursor >= 0 && cursor < len(systemCursors) && systemCursors[cursor] != 0 {
+				winapi.SetCursor(systemCursors[cursor])
+				return 1 // Indicate we handled the message
+			}
+		}
+		// Let DefWindowProc handle non-client area cursors
 	case winapi.WM_SIZE:
 		// Fallback path: if WM_DPICHANGED wasn't delivered (e.g. non-top-level/parented window),
 		// re-check DPI on resize and fire the handler on change.

@@ -51,6 +51,7 @@ var (
 	procPostMessageW                 = moduser32.NewProc("PostMessageW")
 	procRegisterClassExW             = moduser32.NewProc("RegisterClassExW")
 	procLoadCursorW                  = moduser32.NewProc("LoadCursorW")
+	procSetCursor                    = moduser32.NewProc("SetCursor")
 	procLoadIconW                    = moduser32.NewProc("LoadIconW")
 	procCreateWindowExW              = moduser32.NewProc("CreateWindowExW")
 	procAdjustWindowRectEx           = moduser32.NewProc("AdjustWindowRectEx")
@@ -193,6 +194,12 @@ func LoadCursor(hInstance syscall.Handle, cursorName uintptr) (cursor syscall.Ha
 			err = syscall.EINVAL
 		}
 	}
+	return
+}
+
+func SetCursor(cursor syscall.Handle) (prev syscall.Handle) {
+	r0, _, _ := syscall.Syscall(procSetCursor.Addr(), 1, uintptr(cursor), 0, 0)
+	prev = syscall.Handle(r0)
 	return
 }
 

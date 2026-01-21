@@ -8,7 +8,22 @@ import (
 const (
 	IDI_APPLICATION = 32512
 
-	IDC_ARROW = 32512
+	IDC_ARROW  = 32512
+	IDC_IBEAM  = 32513
+	IDC_WAIT   = 32514
+	IDC_CROSS  = 32515
+	IDC_UPARROW = 32516
+	IDC_SIZE   = 32640
+	IDC_ICON   = 32641
+	IDC_SIZENWSE = 32642
+	IDC_SIZENESW = 32643
+	IDC_SIZEWE = 32644
+	IDC_SIZENS = 32645
+	IDC_SIZEALL = 32646
+	IDC_NO     = 32648
+	IDC_HAND   = 32649
+	IDC_APPSTARTING = 32650
+	IDC_HELP   = 32651
 
 	BLACK_BRUSH = 4
 	NULL_BRUSH  = 5
@@ -51,6 +66,7 @@ const (
 	WM_SIZE          = 5
 	WM_KILLFOCUS     = 8
 	WM_PAINT         = 15
+	WM_SETCURSOR     = 32
 	WM_DPICHANGED    = 0x02E0
 	WM_CLOSE         = 16
 	WM_ERASEBKGND    = 20
@@ -71,6 +87,8 @@ const (
 	WM_MOUSEMOVE     = 512
 	WM_MOUSEWHEEL    = 522
 	WM_DROPFILES     = 563
+
+	HTCLIENT = 1 // Hit test code for client area
 
 	WHEEL_DELTA = 120
 
@@ -345,6 +363,7 @@ type BITMAPINFO struct {
 //sys	PostMessage(hwnd syscall.Handle, uMsg uint32, wParam uintptr, lParam uintptr) (err error) = user32.PostMessageW
 //sys	RegisterClassEx(wc *WNDCLASSEX) (atom uint16, err error) = user32.RegisterClassExW
 //sys	LoadCursor(hInstance syscall.Handle, cursorName uintptr) (cursor syscall.Handle, err error) = user32.LoadCursorW
+//sys	SetCursor(cursor syscall.Handle) (prev syscall.Handle) = user32.SetCursor
 //sys	LoadIcon(hInstance syscall.Handle, iconName uintptr) (icon syscall.Handle, err error) = user32.LoadIconW
 //sys	CreateWindowEx(exstyle uint32, className *uint16, windowText *uint16, style uint32, x int32, y int32, width int32, height int32, parent syscall.Handle, menu syscall.Handle, hInstance syscall.Handle, lpParam uintptr) (hwnd syscall.Handle, err error) = user32.CreateWindowExW
 //sys	AdjustWindowRectEx(rect *RECT, style uint32, menu int32, exStyle uint32) (err error) = user32.AdjustWindowRectEx
